@@ -7,6 +7,8 @@
   * pwd
   * type
 * External commands on PATH environment variable
+  * shell resolves command path via PATH lookup (subject to is_file and is_executable checks; also for`type` builtin)
+  * child process receives original command name as `argv[0]` (e.g., `ls` sees `argv[0]="ls"`, not `/usr/bin/ls`)
   * partial command expanded to the full name on TAB, when that's the only candidate
   * partial commands expanded to the longest common substring on TAB-TAB, first TAB send BEL '\a' (bell) to terminal
 * Pipes (arbitrary number, builtins STDOUT is piped)
