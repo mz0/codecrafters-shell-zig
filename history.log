@@ -6,7 +6,7 @@ echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/mise-archive-keyring.asc] http
 
 sudo apt update
 sudo apt install mise
-mise -v                 # 2026.1.6 linux-x64 (2026-01-21)
+mise -v                 # 2026.1.7 linux-x64 (2026-01-25)
 
 mise ls-remote zig      # master ... 0.14.1 0.15.1 0.15.2
 mise use -g zig
@@ -18,3 +18,13 @@ echo 'eval "$(mise activate bash)"' >> ~/.bashrc
 . ~/.bashrc
 
 zig version             # 0.15.2
+
+mise use -g zls
+zls version             # 0.15.1
+
+## VS Code
+# - Mise VSCode  (hverlin.mise-vscode)
+# - Zig Language (ziglang.vscode-zig)
+# - Tombi (tombi-toml.tombi)
+
+## CLion - TODO
