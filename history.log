@@ -28,3 +28,11 @@ zls version             # 0.15.1
 # - Tombi (tombi-toml.tombi)
 
 ## CLion - TODO
+
+## Claude Code
+curl -fsSL https://claude.ai/install.sh | bash
+
+✔ Claude Code successfully installed!
+  Version: 2.1.19
+  Location: ~/.local/bin/claude
+  Next: Run claude --help to get started
