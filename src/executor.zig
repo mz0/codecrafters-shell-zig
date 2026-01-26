@@ -40,10 +40,10 @@ pub const Executor = struct {
         };
         defer self.allocator.free(exe_path);
 
-        // Build argv with resolved path
+        // Build argv with original command name (not resolved path)
         var child_argv: std.ArrayListUnmanaged([]const u8) = .empty;
         defer child_argv.deinit(self.allocator);
-        child_argv.append(self.allocator, exe_path) catch return 1;
+        child_argv.append(self.allocator, cmd) catch return 1;
         for (argv[1..]) |arg| {
             child_argv.append(self.allocator, arg) catch return 1;
         }
