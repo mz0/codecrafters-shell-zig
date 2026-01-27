@@ -134,11 +134,12 @@ pub const Builtins = struct {
             return 1;
         };
 
-        // Parse flags and filepath
+        // Parse flags, filepath, and count
         var flag_a = false; // append to file
         var flag_r = false; // read from file
         var flag_w = false; // write to file
         var filepath: ?[]const u8 = null;
+        var count: ?usize = null;
 
         for (argv[1..]) |arg| {
             if (std.mem.eql(u8, arg, "-a")) {
@@ -148,7 +149,12 @@ pub const Builtins = struct {
             } else if (std.mem.eql(u8, arg, "-w")) {
                 flag_w = true;
             } else if (arg.len > 0 and arg[0] != '-') {
-                filepath = arg;
+                // Try to parse as number first
+                if (std.fmt.parseInt(usize, arg, 10)) |n| {
+                    count = n;
+                } else |_| {
+                    filepath = arg;
+                }
             }
         }
 
@@ -193,7 +199,13 @@ pub const Builtins = struct {
 
         // No flags - print history
         const history = editor.getHistory();
-        for (history, 1..) |line, i| {
+        const total = history.len;
+        const start_idx: usize = if (count) |n|
+            if (n < total) total - n else 0
+        else
+            0;
+
+        for (history[start_idx..], start_idx + 1..) |line, i| {
             stdout.print("{d:>5}  {s}\n", .{ i, line }) catch {};
         }
         return 0;

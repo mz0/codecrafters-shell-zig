@@ -31,7 +31,7 @@
 30. Pipelines :: Multi-command pipelines
 31. History :: The history builtin
 32. History :: Listing history
-1. History :: Limiting history entries
+33. History :: Limiting history entries
 34. History :: Up-arrow navigation
 35. History :: Down-arrow navigation
 36. History :: Executing commands from history
