@@ -20,6 +20,7 @@ pub const Key = union(enum) {
 
 pub const Terminal = struct {
     original_termios: ?posix.termios,
+    raw_termios: ?posix.termios,
     stdin_fd: posix.fd_t,
     stdout_fd: posix.fd_t,
     is_tty: bool,
@@ -33,6 +34,7 @@ pub const Terminal = struct {
             // Not a terminal - use cooked mode
             return .{
                 .original_termios = null,
+                .raw_termios = null,
                 .stdin_fd = stdin_fd,
                 .stdout_fd = stdout_fd,
                 .is_tty = false,
@@ -57,6 +59,7 @@ pub const Terminal = struct {
 
         return .{
             .original_termios = original,
+            .raw_termios = raw,
             .stdin_fd = stdin_fd,
             .stdout_fd = stdout_fd,
             .is_tty = true,
@@ -66,6 +69,20 @@ pub const Terminal = struct {
     pub fn deinit(self: *Terminal) void {
         if (self.original_termios) |orig| {
             posix.tcsetattr(self.stdin_fd, .FLUSH, orig) catch {};
+        }
+    }
+
+    /// Temporarily restore cooked mode for external commands
+    pub fn restoreCooked(self: *Terminal) void {
+        if (self.original_termios) |orig| {
+            posix.tcsetattr(self.stdin_fd, .FLUSH, orig) catch {};
+        }
+    }
+
+    /// Re-enter raw mode after external command completes
+    pub fn enterRaw(self: *Terminal) void {
+        if (self.raw_termios) |raw| {
+            posix.tcsetattr(self.stdin_fd, .FLUSH, raw) catch {};
         }
     }
 

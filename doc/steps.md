@@ -35,9 +35,9 @@
 34. History :: Up-arrow navigation
 35. History :: Down-arrow navigation
 36. History :: Executing commands from history
-1. History Persistence :: Read history from file
-1. History Persistence :: Write history to file
-1. History Persistence :: Append history to file
-1. History Persistence :: Read history on startup
-1. History Persistence :: Write history on exit
-1. History Persistence :: Append history on exit
+37. History Persistence :: Read history from file
+38. History Persistence :: Write history to file
+39. History Persistence :: Append history to file
+40. History Persistence :: Read history on startup
+41. History Persistence :: Write history on exit
+42. History Persistence :: Append history on exit

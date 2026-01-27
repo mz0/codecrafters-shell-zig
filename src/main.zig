@@ -25,6 +25,9 @@ pub fn main() !void {
     var term = terminal.Terminal.init();
     defer term.deinit();
 
+    // Connect terminal to executor for proper stdin handling
+    exec.setTerminal(&term);
+
     // Initialize line editor
     var editor = line_editor.LineEditor.init(allocator, &term, &path_resolver);
     defer editor.deinit();

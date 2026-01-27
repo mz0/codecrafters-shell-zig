@@ -164,7 +164,7 @@ pub const Builtins = struct {
                 stderr.print("history: -a requires a filename\n", .{}) catch {};
                 return 1;
             };
-            editor.saveHistoryFile(target) catch |err| {
+            editor.appendToHistoryFile(target) catch |err| {
                 stderr.print("history: cannot write {s}: {s}\n", .{ target, @errorName(err) }) catch {};
                 return 1;
             };
@@ -205,8 +205,8 @@ pub const Builtins = struct {
         else
             0;
 
-        for (history[start_idx..], start_idx + 1..) |line, i| {
-            stdout.print("{d:>5}  {s}\n", .{ i, line }) catch {};
+        for (history[start_idx..], start_idx + 1..) |entry, i| {
+            stdout.print("{d:>5}  {s}\n", .{ i, entry.line }) catch {};
         }
         return 0;
     }

@@ -23,7 +23,8 @@
   * is read from a file pointed by HISTFILE env. variable on startup
   * is read from `history -r <file-path>` <file-path> argument and appended to in-memory _history_
   * is appended to a file pointed by HISTFILE env. variable on shutdown
-  * is appended to `history -a <file-path>` <file-path> argument
+  * is appended to `history -a <file-path>` <file-path> argument. Running history -a multiple times should only append commands
+    that have been executed since the last time history -a was run
   * is written to `history -w <file-path>` <file-path> argument
   * is shown on `history` command one command per line in two columns e.g. `    9 echo "Boo!"`
   * `history <N>` shows the last N commands (numbered like before, i.e. if there are 8 commands in history, the last line printed on `history 3` is `    9 history 3`)

@@ -13,6 +13,11 @@ pub const Action = enum {
     eof,
 };
 
+const HistoryEntry = struct {
+    line: []const u8,
+    saved: bool,
+};
+
 pub const LineEditor = struct {
     buffer: std.ArrayListUnmanaged(u8),
     cursor: usize,
@@ -21,7 +26,7 @@ pub const LineEditor = struct {
     allocator: Allocator,
     last_key_was_tab: bool,
     // History support
-    history: std.ArrayListUnmanaged([]const u8),
+    history: std.ArrayListUnmanaged(HistoryEntry),
     history_index: ?usize, // null = editing new line, 0 = most recent, etc.
     saved_line: std.ArrayListUnmanaged(u8), // saves current input when navigating history
 
@@ -41,8 +46,8 @@ pub const LineEditor = struct {
 
     pub fn deinit(self: *LineEditor) void {
         self.buffer.deinit(self.allocator);
-        for (self.history.items) |line| {
-            self.allocator.free(line);
+        for (self.history.items) |entry| {
+            self.allocator.free(entry.line);
         }
         self.history.deinit(self.allocator);
         self.saved_line.deinit(self.allocator);
@@ -352,7 +357,7 @@ pub const LineEditor = struct {
             return;
         }
 
-        self.replaceLineWith(self.history.items[self.history.items.len - 1 - self.history_index.?]);
+        self.replaceLineWith(self.history.items[self.history.items.len - 1 - self.history_index.?].line);
     }
 
     fn historyDown(self: *LineEditor) void {
@@ -363,7 +368,7 @@ pub const LineEditor = struct {
 
         if (self.history_index.? > 0) {
             self.history_index = self.history_index.? - 1;
-            self.replaceLineWith(self.history.items[self.history.items.len - 1 - self.history_index.?]);
+            self.replaceLineWith(self.history.items[self.history.items.len - 1 - self.history_index.?].line);
         } else {
             // Back to the saved line
             self.history_index = null;
@@ -402,20 +407,14 @@ pub const LineEditor = struct {
 
     /// Add a command to history (call after successful command execution)
     pub fn addToHistory(self: *LineEditor, line: []const u8) !void {
-        // Don't add empty lines or duplicates of last entry
         const trimmed = std.mem.trim(u8, line, " \t\r\n");
         if (trimmed.len == 0) return;
 
-        if (self.history.items.len > 0) {
-            const last = self.history.items[self.history.items.len - 1];
-            if (std.mem.eql(u8, last, trimmed)) return;
-        }
-
         const copy = try self.allocator.dupe(u8, trimmed);
-        try self.history.append(self.allocator, copy);
+        try self.history.append(self.allocator, .{ .line = copy, .saved = false });
     }
 
-    pub fn getHistory(self: *LineEditor) []const []const u8 {
+    pub fn getHistory(self: *LineEditor) []const HistoryEntry {
         return self.history.items;
     }
 
@@ -436,24 +435,35 @@ pub const LineEditor = struct {
         while (iter.next()) |line| {
             if (line.len > 0) {
                 const copy = try self.allocator.dupe(u8, line);
-                try self.history.append(self.allocator, copy);
+                try self.history.append(self.allocator, .{ .line = copy, .saved = true });
             }
         }
     }
 
-    /// Save history to file (typically HISTFILE)
+    /// Save history to file (typically HISTFILE) - writes all entries
     pub fn saveHistoryFile(self: *LineEditor, filepath: []const u8) !void {
         const file = try std.fs.createFileAbsolute(filepath, .{});
         defer file.close();
 
-        for (self.history.items) |line| {
-            _ = try file.write(line);
+        for (self.history.items) |*entry| {
+            _ = try file.write(entry.line);
             _ = try file.write("\n");
+            entry.saved = true;
         }
     }
 
-    /// Append a single line to history file (for -a flag)
-    pub fn appendToHistoryFile(_: *LineEditor, filepath: []const u8, line: []const u8) !void {
+    /// Append only unsaved history entries to file (for -a flag)
+    pub fn appendToHistoryFile(self: *LineEditor, filepath: []const u8) !void {
+        // Check if there are any unsaved entries
+        var has_unsaved = false;
+        for (self.history.items) |entry| {
+            if (!entry.saved) {
+                has_unsaved = true;
+                break;
+            }
+        }
+        if (!has_unsaved) return;
+
         const file = std.fs.openFileAbsolute(filepath, .{ .mode = .write_only }) catch |err| switch (err) {
             error.FileNotFound => try std.fs.createFileAbsolute(filepath, .{}),
             else => return err,
@@ -461,8 +471,13 @@ pub const LineEditor = struct {
         defer file.close();
 
         try file.seekFromEnd(0);
-        _ = try file.write(line);
-        _ = try file.write("\n");
+        for (self.history.items) |*entry| {
+            if (!entry.saved) {
+                _ = try file.write(entry.line);
+                _ = try file.write("\n");
+                entry.saved = true;
+            }
+        }
     }
 
     pub fn redraw(self: *LineEditor, prompt: []const u8) void {

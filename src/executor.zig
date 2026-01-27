@@ -3,9 +3,11 @@ const posix = std.posix;
 const path = @import("path.zig");
 const builtins = @import("builtins.zig");
 const tokenizer = @import("tokenizer.zig");
+const terminal = @import("terminal.zig");
 const Allocator = std.mem.Allocator;
 const Token = tokenizer.Token;
 const TokenKind = tokenizer.TokenKind;
+const Terminal = terminal.Terminal;
 
 pub const Command = struct {
     argv: []const []const u8,
@@ -25,13 +27,19 @@ pub const Executor = struct {
     builtins: *builtins.Builtins,
     path_resolver: *path.PathResolver,
     allocator: Allocator,
+    term: ?*Terminal,
 
     pub fn init(allocator: Allocator, b: *builtins.Builtins, pr: *path.PathResolver) Executor {
         return .{
             .builtins = b,
             .path_resolver = pr,
             .allocator = allocator,
+            .term = null,
         };
+    }
+
+    pub fn setTerminal(self: *Executor, term: *Terminal) void {
+        self.term = term;
     }
 
     /// Parse tokens into a Command struct
@@ -287,8 +295,12 @@ pub const Executor = struct {
         const exe_path_z = self.allocator.dupeZ(u8, exe_path) catch return 1;
         defer self.allocator.free(exe_path_z);
 
+        // Restore cooked mode before fork so child gets proper terminal
+        if (self.term) |t| t.restoreCooked();
+
         // Fork
         const pid = posix.fork() catch |err| {
+            if (self.term) |t| t.enterRaw();
             stderr.print("{s}: fork failed: {s}\n", .{ cmd_name, @errorName(err) }) catch {};
             return 126;
         };
@@ -314,6 +326,10 @@ pub const Executor = struct {
 
         // Parent: wait for child
         const result = posix.waitpid(pid, 0);
+
+        // Re-enter raw mode after child exits
+        if (self.term) |t| t.enterRaw();
+
         if (posix.W.IFEXITED(result.status)) {
             return posix.W.EXITSTATUS(result.status);
         } else if (posix.W.IFSIGNALED(result.status)) {
