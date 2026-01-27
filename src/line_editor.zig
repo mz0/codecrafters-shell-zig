@@ -144,23 +144,49 @@ pub const LineEditor = struct {
         } else {
             // Multiple matches
             if (second_tab) {
-                // Second TAB - complete to longest common prefix
+                // Second TAB - display all candidates and complete to longest common prefix
+                try self.displayCandidates(completions.items);
+
+                // Also complete to longest common prefix if possible
                 const lcp = longestCommonPrefix(completions.items);
                 if (lcp.len > prefix.len) {
-                    // There's more to complete
                     const suffix = lcp[prefix.len..];
                     for (suffix) |c| {
                         try self.insertChar(c);
                     }
-                } else {
-                    // No more common prefix, just bell
-                    self.term.bell();
                 }
             } else {
                 // First TAB - just bell
                 self.term.bell();
             }
         }
+    }
+
+    fn displayCandidates(self: *LineEditor, candidates: []const []const u8) !void {
+        // Copy to mutable slice for sorting
+        const sorted = try self.allocator.alloc([]const u8, candidates.len);
+        defer self.allocator.free(sorted);
+        @memcpy(sorted, candidates);
+
+        // Sort alphabetically
+        std.sort.insertion([]const u8, sorted, {}, struct {
+            fn lessThan(_: void, a: []const u8, b: []const u8) bool {
+                return std.mem.order(u8, a, b) == .lt;
+            }
+        }.lessThan);
+
+        // Print newline, then candidates, then redraw prompt+buffer
+        try self.term.write("\n");
+
+        for (sorted) |c| {
+            try self.term.write(c);
+            try self.term.write("  ");
+        }
+        try self.term.write("\n");
+
+        // Redraw prompt and current buffer
+        try self.term.write("$ ");
+        try self.term.write(self.buffer.items);
     }
 
     fn completeWith(self: *LineEditor, match: []const u8, prefix_len: usize) !void {
