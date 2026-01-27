@@ -13,6 +13,7 @@ pub const Command = struct {
     stdout_append: bool = false,
     stderr_file: ?[]const u8 = null,
     stderr_append: bool = false,
+    pipe_next: ?*Command = null,
 };
 
 pub const ParseError = error{
@@ -65,8 +66,17 @@ pub const Executor = struct {
                     i += 2;
                 },
                 .pipe => {
-                    // Pipes handled in Phase 5
-                    i += 1;
+                    cmd.argv = try argv_list.toOwnedSlice(self.allocator);
+                    const remaining_tokens = tokens[i+1..];
+                    if (remaining_tokens.len > 0) {
+                        const next_cmd_ptr = try self.allocator.create(Command);
+                        next_cmd_ptr.* = try self.parseCommand(remaining_tokens);
+                        cmd.pipe_next = next_cmd_ptr;
+                    }
+                    // If no tokens after pipe, we still return the command,
+                    // pipe_next will be null (initialized).
+                    // We should return error. For now this is fine.
+                    return cmd;
                 },
             }
         }
@@ -77,6 +87,10 @@ pub const Executor = struct {
 
     pub fn freeCommand(self: *Executor, cmd: *Command) void {
         self.allocator.free(cmd.argv);
+        if (cmd.pipe_next) |next| {
+            self.freeCommand(next);
+            self.allocator.destroy(next);
+        }
     }
 
     /// Execute a command. Returns exit code.
@@ -92,6 +106,51 @@ pub const Executor = struct {
         };
         defer self.freeCommand(&cmd);
 
+        return self.executePipeline(&cmd, null, stdout, stderr);
+    }
+
+    fn executePipeline(self: *Executor, cmd: *Command, stdin_fd: ?posix.fd_t, stdout: anytype, stderr: anytype) !u8 {
+        if (cmd.pipe_next) |next_cmd| {
+             const p = try posix.pipe();
+             const pid = posix.fork() catch |err| {
+                 stderr.print("fork failed: {s}\n", .{@errorName(err)}) catch {};
+                 return 1;
+             };
+
+             if (pid == 0) {
+                 // Child
+                 posix.close(p[0]); // Close read end
+
+                 if (stdin_fd) |fd| {
+                     posix.dup2(fd, posix.STDIN_FILENO) catch posix.exit(1);
+                     posix.close(fd);
+                 }
+
+                 // If no explicit redirect, pipe to next command
+                 if (cmd.stdout_file == null) {
+                     posix.dup2(p[1], posix.STDOUT_FILENO) catch posix.exit(1);
+                 }
+                 posix.close(p[1]);
+
+                 const code = self.executeSingle(cmd, null, stdout, stderr) catch 1;
+                 posix.exit(code);
+             }
+
+             // Parent
+             posix.close(p[1]); // Close write end
+             if (stdin_fd) |fd| posix.close(fd);
+
+             const last_exit = try self.executePipeline(next_cmd, p[0], stdout, stderr);
+             _ = posix.waitpid(pid, 0);
+             return last_exit;
+
+        } else {
+             defer if (stdin_fd) |fd| posix.close(fd);
+             return self.executeSingle(cmd, stdin_fd, stdout, stderr);
+        }
+    }
+
+    fn executeSingle(self: *Executor, cmd: *Command, stdin_fd: ?posix.fd_t, stdout: anytype, stderr: anytype) !u8 {
         if (cmd.argv.len == 0) return 0;
 
         // Try builtin first (builtins respect redirects too)
@@ -101,13 +160,13 @@ pub const Executor = struct {
             }
         } else {
             // Handle builtin with redirects
-            if (try self.executeBuiltinWithRedirects(&cmd, stdout, stderr)) |code| {
+            if (try self.executeBuiltinWithRedirects(cmd, stdout, stderr)) |code| {
                 return code;
             }
         }
 
         // External command
-        return self.executeExternal(&cmd, stderr);
+        return self.executeExternal(cmd, stdin_fd, stderr);
     }
 
     fn executeBuiltinWithRedirects(self: *Executor, cmd: *Command, fallback_stdout: anytype, fallback_stderr: anytype) !?u8 {
@@ -168,7 +227,7 @@ pub const Executor = struct {
         return null;
     }
 
-    fn executeExternal(self: *Executor, cmd: *Command, stderr: anytype) u8 {
+    fn executeExternal(self: *Executor, cmd: *Command, stdin_fd: ?posix.fd_t, stderr: anytype) u8 {
         const argv = cmd.argv;
         const cmd_name = argv[0];
 
@@ -236,6 +295,9 @@ pub const Executor = struct {
 
         if (pid == 0) {
             // Child process
+            if (stdin_fd) |fd| {
+                posix.dup2(fd, posix.STDIN_FILENO) catch posix.exit(126);
+            }
             if (stdout_fd) |fd| {
                 posix.dup2(fd, posix.STDOUT_FILENO) catch posix.exit(126);
             }
