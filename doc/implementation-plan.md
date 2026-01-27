@@ -102,9 +102,12 @@ const Pipeline = struct {
 - **Milestone**: Navigate previous commands, persist across sessions
 
 ### Phase 8: TAB Completion
+- TAB-completion should work for builtins too
 - `path.zig`: Build command map from PATH on startup
 - `line_editor.zig`: Single match → complete; multiple → bell, second TAB → longest common prefix
-- **Milestone**: `ec<TAB>` → `echo`
+- **Milestone 1**: `echo hello^H^H^H^Hbye!` → `echo bye!`, Tab, Del, Arrows - send BEL (\a)
+- **Milestone 2**: `ec<TAB>` → `echo `
+- **Milestone 3**: `lsu<TAB>` → `lsusb `
 
 ### Phase 9: Signals
 - Ctrl+C exits (raw mode catches it directly), Ctrl+D exits silently (on empty line)

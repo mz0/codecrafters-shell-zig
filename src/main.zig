@@ -3,6 +3,8 @@ const path = @import("path.zig");
 const builtins = @import("builtins.zig");
 const executor = @import("executor.zig");
 const tokenizer = @import("tokenizer.zig");
+const terminal = @import("terminal.zig");
+const line_editor = @import("line_editor.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -19,31 +21,32 @@ pub fn main() !void {
     // Initialize executor
     var exec = executor.Executor.init(allocator, &b, &path_resolver);
 
-    // I/O setup
-    var stdout_buf: [4096]u8 = undefined;
-    var stderr_buf: [4096]u8 = undefined;
-    var stdin_buf: [4096]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
-    var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
+    // Initialize terminal (raw mode if tty, cooked mode otherwise)
+    var term = terminal.Terminal.init();
+    defer term.deinit();
+
+    // Initialize line editor
+    var editor = line_editor.LineEditor.init(allocator, &term);
+    defer editor.deinit();
+
+    // I/O setup for command output (not for line reading)
+    // Using writerStreaming for automatic flush behavior
+    var stdout_writer = std.fs.File.stdout().writerStreaming(&.{});
+    var stderr_writer = std.fs.File.stderr().writerStreaming(&.{});
     const stdout = &stdout_writer.interface;
     const stderr = &stderr_writer.interface;
-    const stdin = &stdin_reader.interface;
 
     // Main REPL loop
     while (true) {
-        try stdout.print("$ ", .{});
-        try stdout.flush();
+        // Print prompt
+        term.write("$ ") catch {};
 
-        // Read line
-        const line = stdin.takeDelimiter('\n') catch |err| switch (err) {
-            error.StreamTooLong => {
-                try stderr.print("error: line too long\n", .{});
-                try stderr.flush();
-                continue;
-            },
-            else => return err,
-        } orelse break; // EOF
+        // Read line using line editor
+        editor.clear();
+        const line = readLine(&editor, &term) catch |err| {
+            if (err == error.EOF) break;
+            continue;
+        };
 
         const trimmed = std.mem.trim(u8, line, " \t\r");
         if (trimmed.len == 0) continue;
@@ -58,8 +61,8 @@ pub fn main() !void {
                 error.UnterminatedDoubleQuote => "syntax error: unterminated double quote",
                 error.OutOfMemory => "error: out of memory",
             };
-            try stderr.print("{s}\n", .{msg});
-            try stderr.flush();
+            stderr.print("{s}\n", .{msg}) catch {};
+            stderr.flush() catch {};
             continue;
         };
 
@@ -71,7 +74,18 @@ pub fn main() !void {
             else => return err,
         };
 
-        try stdout.flush();
-        try stderr.flush();
+    }
+}
+
+fn readLine(editor: *line_editor.LineEditor, term: *terminal.Terminal) ![]const u8 {
+    while (true) {
+        const key = try term.readKey();
+        const action = try editor.handleKey(key);
+
+        switch (action) {
+            .continue_editing => continue,
+            .submit => return editor.getLine(),
+            .eof => return error.EOF,
+        }
     }
 }
