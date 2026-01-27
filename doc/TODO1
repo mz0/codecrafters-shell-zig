@@ -1,0 +1,17 @@
+[tester::#WT6] [setup] Available executables:
+[tester::#WT6] [setup] - xyz_cow
+[tester::#WT6] [setup] - xyz_cow_ant
+[tester::#WT6] [setup] - xyz_cow_ant_bee
+[tester::#WT6] Running ./your_program.sh
+[tester::#WT6] ✓ Received prompt ($ )
+[tester::#WT6] Typed "xyz_"
+[tester::#WT6] ✓ Prompt line matches "$ xyz_"
+[tester::#WT6] Pressed "<TAB>" (expecting autocomplete to "xyz_cow")
+[your-program] $ xyz_
+[tester::#WT6] ^ Line does not match expected value.
+[tester::#WT6] Expected: "$ xyz_cow"
+[tester::#WT6] Received: "$ xyz_"
+
+Partial completions
+In this stage, you'll extend autocompletion to handle partial completions using the longest common prefix (LCP) logic.
+https://app.codecrafters.io/courses/shell/stages/wt6
