@@ -2,6 +2,7 @@ const std = @import("std");
 const path = @import("path.zig");
 const builtins = @import("builtins.zig");
 const executor = @import("executor.zig");
+const tokenizer = @import("tokenizer.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -47,14 +48,28 @@ pub fn main() !void {
         const trimmed = std.mem.trim(u8, line, " \t\r");
         if (trimmed.len == 0) continue;
 
-        // Parse into argv (simple whitespace split for now)
+        // Tokenize input
+        var t = tokenizer.Tokenizer.init(trimmed, allocator);
+        defer t.deinit();
+
+        const tokens = t.tokenize() catch |err| {
+            const msg = switch (err) {
+                error.UnterminatedSingleQuote => "syntax error: unterminated single quote",
+                error.UnterminatedDoubleQuote => "syntax error: unterminated double quote",
+                error.OutOfMemory => "error: out of memory",
+            };
+            try stderr.print("{s}\n", .{msg});
+            try stderr.flush();
+            continue;
+        };
+
+        // Extract words for argv (pipes/redirects handled in later phases)
         var argv_list: std.ArrayListUnmanaged([]const u8) = .empty;
         defer argv_list.deinit(allocator);
 
-        var iter = std.mem.splitAny(u8, trimmed, " \t");
-        while (iter.next()) |arg| {
-            if (arg.len > 0) {
-                try argv_list.append(allocator, arg);
+        for (tokens) |token| {
+            if (token.kind == .word) {
+                try argv_list.append(allocator, token.value);
             }
         }
 
