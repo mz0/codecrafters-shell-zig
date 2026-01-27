@@ -19,6 +19,7 @@ pub const LineEditor = struct {
     term: *Terminal,
     path_resolver: *PathResolver,
     allocator: Allocator,
+    last_key_was_tab: bool,
 
     pub fn init(allocator: Allocator, term: *Terminal, path_resolver: *PathResolver) LineEditor {
         return .{
@@ -27,6 +28,7 @@ pub const LineEditor = struct {
             .term = term,
             .path_resolver = path_resolver,
             .allocator = allocator,
+            .last_key_was_tab = false,
         };
     }
 
@@ -35,6 +37,9 @@ pub const LineEditor = struct {
     }
 
     pub fn handleKey(self: *LineEditor, key: Key) !Action {
+        const is_tab = (key == .tab);
+        defer self.last_key_was_tab = is_tab;
+
         switch (key) {
             .char => |c| {
                 try self.insertChar(c);
@@ -59,7 +64,7 @@ pub const LineEditor = struct {
             },
             .tab => {
                 if (self.term.is_tty) {
-                    try self.handleTab();
+                    try self.handleTab(self.last_key_was_tab);
                 }
             },
             // Del, Arrows still just send BEL for now
@@ -73,7 +78,7 @@ pub const LineEditor = struct {
         return .continue_editing;
     }
 
-    fn handleTab(self: *LineEditor) !void {
+    fn handleTab(self: *LineEditor, second_tab: bool) !void {
         // Only complete if we're at the first word (command position)
         const line = self.buffer.items;
 
@@ -135,18 +140,36 @@ pub const LineEditor = struct {
         if (completions.items.len == 1) {
             // Single match - complete it
             const match = completions.items[0];
-            const suffix = match[prefix.len..];
-
-            // Insert the completion suffix
-            for (suffix) |c| {
-                try self.insertChar(c);
-            }
-            // Add trailing space
-            try self.insertChar(' ');
+            try self.completeWith(match, prefix.len);
         } else {
-            // Multiple matches - bell for now (Milestone 3 will handle this)
-            self.term.bell();
+            // Multiple matches
+            if (second_tab) {
+                // Second TAB - complete to longest common prefix
+                const lcp = longestCommonPrefix(completions.items);
+                if (lcp.len > prefix.len) {
+                    // There's more to complete
+                    const suffix = lcp[prefix.len..];
+                    for (suffix) |c| {
+                        try self.insertChar(c);
+                    }
+                } else {
+                    // No more common prefix, just bell
+                    self.term.bell();
+                }
+            } else {
+                // First TAB - just bell
+                self.term.bell();
+            }
         }
+    }
+
+    fn completeWith(self: *LineEditor, match: []const u8, prefix_len: usize) !void {
+        const suffix = match[prefix_len..];
+        for (suffix) |c| {
+            try self.insertChar(c);
+        }
+        // Add trailing space
+        try self.insertChar(' ');
     }
 
     fn getWordAtCursor(self: *LineEditor) []const u8 {
@@ -186,6 +209,7 @@ pub const LineEditor = struct {
     pub fn clear(self: *LineEditor) void {
         self.buffer.clearRetainingCapacity();
         self.cursor = 0;
+        self.last_key_was_tab = false;
     }
 
     pub fn redraw(self: *LineEditor, prompt: []const u8) void {
@@ -194,3 +218,22 @@ pub const LineEditor = struct {
         self.term.write(self.buffer.items) catch {};
     }
 };
+
+fn longestCommonPrefix(strings: []const []const u8) []const u8 {
+    if (strings.len == 0) return "";
+    if (strings.len == 1) return strings[0];
+
+    const first = strings[0];
+    var prefix_len: usize = first.len;
+
+    for (strings[1..]) |s| {
+        var i: usize = 0;
+        while (i < prefix_len and i < s.len and first[i] == s[i]) {
+            i += 1;
+        }
+        prefix_len = i;
+        if (prefix_len == 0) break;
+    }
+
+    return first[0..prefix_len];
+}
