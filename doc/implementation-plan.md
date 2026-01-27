@@ -91,6 +91,15 @@ const Pipeline = struct {
 - `executor.zig`: Open files, dup2 for stdout/stderr
 - **Milestone**: `ls > /tmp/out`, `ls 2> /tmp/err`
 
+### Phase 8: TAB Completion
+- TAB-completion should work for builtins too
+- `path.zig`: Build command map from PATH on startup
+- `line_editor.zig`: Single match → complete; multiple → bell, second TAB → longest common prefix
+- **Milestone 1**: `echo hello^H^H^H^Hbye!` → `echo bye!`, Tab, Del, Arrows - send BEL (\a)
+- **Milestone 2**: `ec<TAB>` → `echo `
+- **Milestone 3**: `lsu<TAB>` → `lsusb `
+- **Milestone 4**: `ls<TAB>` → BEL`ls` / <TAB2> → print candidates
+
 ### Phase 6: Pipes
 - `executor.zig`: Create pipes, connect commands
 - **Milestone**: `cat /etc/passwd | grep root | wc -l`
@@ -100,14 +109,6 @@ const Pipeline = struct {
 - Load from HISTFILE on startup, save on exit
 - `history` builtin with -a/-r/-w flags
 - **Milestone**: Navigate previous commands, persist across sessions
-
-### Phase 8: TAB Completion
-- TAB-completion should work for builtins too
-- `path.zig`: Build command map from PATH on startup
-- `line_editor.zig`: Single match → complete; multiple → bell, second TAB → longest common prefix
-- **Milestone 1**: `echo hello^H^H^H^Hbye!` → `echo bye!`, Tab, Del, Arrows - send BEL (\a)
-- **Milestone 2**: `ec<TAB>` → `echo `
-- **Milestone 3**: `lsu<TAB>` → `lsusb `
 
 ### Phase 9: Signals
 - Ctrl+C exits (raw mode catches it directly), Ctrl+D exits silently (on empty line)

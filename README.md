@@ -1,5 +1,3 @@
-[![progress-banner](https://backend.codecrafters.io/progress/shell/b87ac45a-dfd1-4c32-b74b-8cee74a4213e)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
-
 This is a w.i.p. Zig solution to the
 ["Build Your Own Shell" Challenge](https://app.codecrafters.io/courses/shell/overview).
 
