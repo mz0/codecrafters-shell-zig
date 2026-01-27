@@ -63,20 +63,10 @@ pub fn main() !void {
             continue;
         };
 
-        // Extract words for argv (pipes/redirects handled in later phases)
-        var argv_list: std.ArrayListUnmanaged([]const u8) = .empty;
-        defer argv_list.deinit(allocator);
-
-        for (tokens) |token| {
-            if (token.kind == .word) {
-                try argv_list.append(allocator, token.value);
-            }
-        }
-
-        if (argv_list.items.len == 0) continue;
+        if (tokens.len == 0) continue;
 
         // Execute
-        _ = exec.execute(argv_list.items, stdout, stderr) catch |err| switch (err) {
+        _ = exec.execute(tokens, stdout, stderr) catch |err| switch (err) {
             error.Exit => break,
             else => return err,
         };
