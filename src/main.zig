@@ -26,7 +26,7 @@ pub fn main() !void {
     defer term.deinit();
 
     // Initialize line editor
-    var editor = line_editor.LineEditor.init(allocator, &term);
+    var editor = line_editor.LineEditor.init(allocator, &term, &path_resolver);
     defer editor.deinit();
 
     // I/O setup for command output (not for line reading)

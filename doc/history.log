@@ -82,4 +82,7 @@ U: Let's jump to Phase 8: TAB-completion.
 C: Phase 8 requires terminal raw mode and line editor first. Let me implement these together. (Worked for 32s, You've hit your limit · resets in 2 hours)
 
 U: Do Phase 8 (TAB-completion) in baby-steps: see implementation-plan.md Milestone 1, 2, 3 in Phase 8. Pause after reaching a milestone and let me check it.
-C:
+C: Milestone 1 complete. (Brewed for 6m 51s)
+
+U: works, do Milestone 2
+C: Milestone 2 complete. (Cogitated for 2m 9s)

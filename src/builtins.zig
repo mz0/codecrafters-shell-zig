@@ -6,7 +6,7 @@ pub const Builtins = struct {
     path_resolver: *path.PathResolver,
     allocator: Allocator,
 
-    const builtin_names = [_][]const u8{ "cd", "echo", "exit", "pwd", "type" };
+    pub const builtin_names = [_][]const u8{ "cd", "echo", "exit", "pwd", "type" };
 
     pub fn init(allocator: Allocator, path_resolver: *path.PathResolver) Builtins {
         return .{
