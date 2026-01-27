@@ -143,18 +143,18 @@ pub const LineEditor = struct {
             try self.completeWith(match, prefix.len);
         } else {
             // Multiple matches
+            const lcp = longestCommonPrefix(completions.items);
+            if (lcp.len > prefix.len) {
+                const suffix = lcp[prefix.len..];
+                for (suffix) |c| {
+                    try self.insertChar(c);
+                }
+            }
             if (second_tab) {
                 // Second TAB - display all candidates and complete to longest common prefix
                 try self.displayCandidates(completions.items);
 
                 // Also complete to longest common prefix if possible
-                const lcp = longestCommonPrefix(completions.items);
-                if (lcp.len > prefix.len) {
-                    const suffix = lcp[prefix.len..];
-                    for (suffix) |c| {
-                        try self.insertChar(c);
-                    }
-                }
             } else {
                 // First TAB - just bell
                 self.term.bell();
