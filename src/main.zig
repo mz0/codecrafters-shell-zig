@@ -29,6 +29,21 @@ pub fn main() !void {
     var editor = line_editor.LineEditor.init(allocator, &term, &path_resolver);
     defer editor.deinit();
 
+    // Connect editor to builtins for history command
+    b.setEditor(&editor);
+
+    // Load history from HISTFILE if set
+    const histfile = std.posix.getenv("HISTFILE");
+    if (histfile) |hf| {
+        editor.loadHistoryFile(hf) catch {};
+    }
+    defer {
+        // Save history to HISTFILE on exit
+        if (histfile) |hf| {
+            editor.saveHistoryFile(hf) catch {};
+        }
+    }
+
     // I/O setup for command output (not for line reading)
     // Using writerStreaming for automatic flush behavior
     var stdout_writer = std.fs.File.stdout().writerStreaming(&.{});
@@ -67,6 +82,9 @@ pub fn main() !void {
         };
 
         if (tokens.len == 0) continue;
+
+        // Add to history before execution
+        editor.addToHistory(trimmed) catch {};
 
         // Execute
         _ = exec.execute(tokens, stdout, stderr) catch |err| switch (err) {

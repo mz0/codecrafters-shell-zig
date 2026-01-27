@@ -20,6 +20,10 @@ pub const LineEditor = struct {
     path_resolver: *PathResolver,
     allocator: Allocator,
     last_key_was_tab: bool,
+    // History support
+    history: std.ArrayListUnmanaged([]const u8),
+    history_index: ?usize, // null = editing new line, 0 = most recent, etc.
+    saved_line: std.ArrayListUnmanaged(u8), // saves current input when navigating history
 
     pub fn init(allocator: Allocator, term: *Terminal, path_resolver: *PathResolver) LineEditor {
         return .{
@@ -29,11 +33,19 @@ pub const LineEditor = struct {
             .path_resolver = path_resolver,
             .allocator = allocator,
             .last_key_was_tab = false,
+            .history = .empty,
+            .history_index = null,
+            .saved_line = .empty,
         };
     }
 
     pub fn deinit(self: *LineEditor) void {
         self.buffer.deinit(self.allocator);
+        for (self.history.items) |line| {
+            self.allocator.free(line);
+        }
+        self.history.deinit(self.allocator);
+        self.saved_line.deinit(self.allocator);
     }
 
     pub fn handleKey(self: *LineEditor, key: Key) !Action {
@@ -67,11 +79,38 @@ pub const LineEditor = struct {
                     try self.handleTab(self.last_key_was_tab);
                 }
             },
-            // Del, Arrows still just send BEL for now
-            .delete, .arrow_up, .arrow_down, .arrow_left, .arrow_right, .home, .end => {
+            .arrow_up => {
                 if (self.term.is_tty) {
-                    self.term.bell();
+                    self.historyUp();
                 }
+            },
+            .arrow_down => {
+                if (self.term.is_tty) {
+                    self.historyDown();
+                }
+            },
+            .arrow_left => {
+                if (self.term.is_tty) {
+                    self.moveCursorLeft();
+                }
+            },
+            .arrow_right => {
+                if (self.term.is_tty) {
+                    self.moveCursorRight();
+                }
+            },
+            .home => {
+                if (self.term.is_tty) {
+                    self.moveCursorToStart();
+                }
+            },
+            .end => {
+                if (self.term.is_tty) {
+                    self.moveCursorToEnd();
+                }
+            },
+            .delete => {
+                self.deleteCharAt();
             },
             .unknown => {},
         }
@@ -211,10 +250,26 @@ pub const LineEditor = struct {
     }
 
     fn insertChar(self: *LineEditor, c: u8) !void {
-        try self.buffer.append(self.allocator, c);
-        self.cursor += 1;
-        if (self.term.is_tty) {
-            try self.term.write(&[_]u8{c});
+        if (self.cursor == self.buffer.items.len) {
+            // Append at end (common case)
+            try self.buffer.append(self.allocator, c);
+            self.cursor += 1;
+            if (self.term.is_tty) {
+                try self.term.write(&[_]u8{c});
+            }
+        } else {
+            // Insert in middle
+            try self.buffer.insert(self.allocator, self.cursor, c);
+            self.cursor += 1;
+            if (self.term.is_tty) {
+                // Write char and rest of line
+                try self.term.write(self.buffer.items[self.cursor - 1 ..]);
+                // Move cursor back to correct position
+                const chars_after = self.buffer.items.len - self.cursor;
+                if (chars_after > 0) {
+                    self.term.moveCursorLeft(chars_after);
+                }
+            }
         }
     }
 
@@ -223,9 +278,114 @@ pub const LineEditor = struct {
             _ = self.buffer.orderedRemove(self.cursor - 1);
             self.cursor -= 1;
             if (self.term.is_tty) {
-                _ = self.term.write("\x08 \x08") catch {};
+                // Move cursor back, redraw rest of line, clear trailing char
+                self.term.write("\x08") catch {};
+                self.term.write(self.buffer.items[self.cursor..]) catch {};
+                self.term.write(" \x08") catch {};
+                // Move cursor back to correct position
+                const chars_after = self.buffer.items.len - self.cursor;
+                if (chars_after > 0) {
+                    self.term.moveCursorLeft(chars_after);
+                }
             }
         }
+    }
+
+    fn deleteCharAt(self: *LineEditor) void {
+        if (self.cursor < self.buffer.items.len) {
+            _ = self.buffer.orderedRemove(self.cursor);
+            if (self.term.is_tty) {
+                // Redraw rest of line and clear trailing char
+                self.term.write(self.buffer.items[self.cursor..]) catch {};
+                self.term.write(" \x08") catch {};
+                const chars_after = self.buffer.items.len - self.cursor;
+                if (chars_after > 0) {
+                    self.term.moveCursorLeft(chars_after);
+                }
+            }
+        }
+    }
+
+    fn moveCursorLeft(self: *LineEditor) void {
+        if (self.cursor > 0) {
+            self.cursor -= 1;
+            self.term.moveCursorLeft(1);
+        }
+    }
+
+    fn moveCursorRight(self: *LineEditor) void {
+        if (self.cursor < self.buffer.items.len) {
+            self.cursor += 1;
+            self.term.moveCursorRight(1);
+        }
+    }
+
+    fn moveCursorToStart(self: *LineEditor) void {
+        if (self.cursor > 0) {
+            self.term.moveCursorLeft(self.cursor);
+            self.cursor = 0;
+        }
+    }
+
+    fn moveCursorToEnd(self: *LineEditor) void {
+        if (self.cursor < self.buffer.items.len) {
+            self.term.moveCursorRight(self.buffer.items.len - self.cursor);
+            self.cursor = self.buffer.items.len;
+        }
+    }
+
+    fn historyUp(self: *LineEditor) void {
+        if (self.history.items.len == 0) {
+            self.term.bell();
+            return;
+        }
+
+        if (self.history_index == null) {
+            // Save current line before navigating
+            self.saved_line.clearRetainingCapacity();
+            self.saved_line.appendSlice(self.allocator, self.buffer.items) catch return;
+            self.history_index = 0;
+        } else if (self.history_index.? + 1 < self.history.items.len) {
+            self.history_index = self.history_index.? + 1;
+        } else {
+            self.term.bell();
+            return;
+        }
+
+        self.replaceLineWith(self.history.items[self.history.items.len - 1 - self.history_index.?]);
+    }
+
+    fn historyDown(self: *LineEditor) void {
+        if (self.history_index == null) {
+            self.term.bell();
+            return;
+        }
+
+        if (self.history_index.? > 0) {
+            self.history_index = self.history_index.? - 1;
+            self.replaceLineWith(self.history.items[self.history.items.len - 1 - self.history_index.?]);
+        } else {
+            // Back to the saved line
+            self.history_index = null;
+            self.replaceLineWith(self.saved_line.items);
+        }
+    }
+
+    fn replaceLineWith(self: *LineEditor, new_line: []const u8) void {
+        // Clear current line display
+        if (self.cursor > 0) {
+            self.term.moveCursorLeft(self.cursor);
+        }
+        // Clear from cursor to end
+        self.term.write("\x1b[K") catch {};
+
+        // Replace buffer
+        self.buffer.clearRetainingCapacity();
+        self.buffer.appendSlice(self.allocator, new_line) catch return;
+        self.cursor = self.buffer.items.len;
+
+        // Display new line
+        self.term.write(self.buffer.items) catch {};
     }
 
     pub fn getLine(self: *LineEditor) []const u8 {
@@ -236,6 +396,73 @@ pub const LineEditor = struct {
         self.buffer.clearRetainingCapacity();
         self.cursor = 0;
         self.last_key_was_tab = false;
+        self.history_index = null;
+        self.saved_line.clearRetainingCapacity();
+    }
+
+    /// Add a command to history (call after successful command execution)
+    pub fn addToHistory(self: *LineEditor, line: []const u8) !void {
+        // Don't add empty lines or duplicates of last entry
+        const trimmed = std.mem.trim(u8, line, " \t\r\n");
+        if (trimmed.len == 0) return;
+
+        if (self.history.items.len > 0) {
+            const last = self.history.items[self.history.items.len - 1];
+            if (std.mem.eql(u8, last, trimmed)) return;
+        }
+
+        const copy = try self.allocator.dupe(u8, trimmed);
+        try self.history.append(self.allocator, copy);
+    }
+
+    pub fn getHistory(self: *LineEditor) []const []const u8 {
+        return self.history.items;
+    }
+
+    /// Load history from file (typically HISTFILE)
+    pub fn loadHistoryFile(self: *LineEditor, filepath: []const u8) !void {
+        const file = std.fs.openFileAbsolute(filepath, .{}) catch |err| switch (err) {
+            error.FileNotFound => return, // No history file yet, that's OK
+            else => return err,
+        };
+        defer file.close();
+
+        // Read file content
+        const content = file.readToEndAlloc(self.allocator, 1024 * 1024) catch return;
+        defer self.allocator.free(content);
+
+        // Split by lines
+        var iter = std.mem.splitScalar(u8, content, '\n');
+        while (iter.next()) |line| {
+            if (line.len > 0) {
+                const copy = try self.allocator.dupe(u8, line);
+                try self.history.append(self.allocator, copy);
+            }
+        }
+    }
+
+    /// Save history to file (typically HISTFILE)
+    pub fn saveHistoryFile(self: *LineEditor, filepath: []const u8) !void {
+        const file = try std.fs.createFileAbsolute(filepath, .{});
+        defer file.close();
+
+        for (self.history.items) |line| {
+            _ = try file.write(line);
+            _ = try file.write("\n");
+        }
+    }
+
+    /// Append a single line to history file (for -a flag)
+    pub fn appendToHistoryFile(_: *LineEditor, filepath: []const u8, line: []const u8) !void {
+        const file = std.fs.openFileAbsolute(filepath, .{ .mode = .write_only }) catch |err| switch (err) {
+            error.FileNotFound => try std.fs.createFileAbsolute(filepath, .{}),
+            else => return err,
+        };
+        defer file.close();
+
+        try file.seekFromEnd(0);
+        _ = try file.write(line);
+        _ = try file.write("\n");
     }
 
     pub fn redraw(self: *LineEditor, prompt: []const u8) void {

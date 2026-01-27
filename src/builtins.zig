@@ -1,18 +1,25 @@
 const std = @import("std");
 const path = @import("path.zig");
+const line_editor = @import("line_editor.zig");
 const Allocator = std.mem.Allocator;
 
 pub const Builtins = struct {
     path_resolver: *path.PathResolver,
     allocator: Allocator,
+    editor: ?*line_editor.LineEditor,
 
-    pub const builtin_names = [_][]const u8{ "cd", "echo", "exit", "pwd", "type" };
+    pub const builtin_names = [_][]const u8{ "cd", "echo", "exit", "history", "pwd", "type" };
 
     pub fn init(allocator: Allocator, path_resolver: *path.PathResolver) Builtins {
         return .{
             .path_resolver = path_resolver,
             .allocator = allocator,
+            .editor = null,
         };
+    }
+
+    pub fn setEditor(self: *Builtins, editor: *line_editor.LineEditor) void {
+        self.editor = editor;
     }
 
     /// Returns exit code if command was a builtin, null if not a builtin.
@@ -31,6 +38,8 @@ pub const Builtins = struct {
             return self.builtin_cd(argv, stderr);
         } else if (std.mem.eql(u8, cmd, "type")) {
             return self.builtin_type(argv, stdout, stderr);
+        } else if (std.mem.eql(u8, cmd, "history")) {
+            return self.builtin_history(argv, stdout, stderr);
         }
         return null; // Not a builtin
     }
@@ -117,5 +126,76 @@ pub const Builtins = struct {
 
         stderr.print("{s}: not found\n", .{name}) catch {};
         return 1;
+    }
+
+    fn builtin_history(self: *Builtins, argv: []const []const u8, stdout: anytype, stderr: anytype) u8 {
+        const editor = self.editor orelse {
+            stderr.print("history: editor not available\n", .{}) catch {};
+            return 1;
+        };
+
+        // Parse flags and filepath
+        var flag_a = false; // append to file
+        var flag_r = false; // read from file
+        var flag_w = false; // write to file
+        var filepath: ?[]const u8 = null;
+
+        for (argv[1..]) |arg| {
+            if (std.mem.eql(u8, arg, "-a")) {
+                flag_a = true;
+            } else if (std.mem.eql(u8, arg, "-r")) {
+                flag_r = true;
+            } else if (std.mem.eql(u8, arg, "-w")) {
+                flag_w = true;
+            } else if (arg.len > 0 and arg[0] != '-') {
+                filepath = arg;
+            }
+        }
+
+        // -a: append history to file
+        if (flag_a) {
+            const target = filepath orelse {
+                stderr.print("history: -a requires a filename\n", .{}) catch {};
+                return 1;
+            };
+            editor.saveHistoryFile(target) catch |err| {
+                stderr.print("history: cannot write {s}: {s}\n", .{ target, @errorName(err) }) catch {};
+                return 1;
+            };
+            return 0;
+        }
+
+        // -r: read history from file
+        if (flag_r) {
+            const target = filepath orelse {
+                stderr.print("history: -r requires a filename\n", .{}) catch {};
+                return 1;
+            };
+            editor.loadHistoryFile(target) catch |err| {
+                stderr.print("history: cannot read {s}: {s}\n", .{ target, @errorName(err) }) catch {};
+                return 1;
+            };
+            return 0;
+        }
+
+        // -w: write history to file
+        if (flag_w) {
+            const target = filepath orelse {
+                stderr.print("history: -w requires a filename\n", .{}) catch {};
+                return 1;
+            };
+            editor.saveHistoryFile(target) catch |err| {
+                stderr.print("history: cannot write {s}: {s}\n", .{ target, @errorName(err) }) catch {};
+                return 1;
+            };
+            return 0;
+        }
+
+        // No flags - print history
+        const history = editor.getHistory();
+        for (history, 1..) |line, i| {
+            stdout.print("{d:>5}  {s}\n", .{ i, line }) catch {};
+        }
+        return 0;
     }
 };

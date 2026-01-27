@@ -29,12 +29,12 @@
 28. Pipelines :: Dual-command pipeline
 29. Pipelines :: Pipelines with built-ins
 30. Pipelines :: Multi-command pipelines
-1. History :: The history builtin
-1. History :: Listing history
+31. History :: The history builtin
+32. History :: Listing history
 1. History :: Limiting history entries
-1. History :: Up-arrow navigation
-1. History :: Down-arrow navigation
-1. History :: Executing commands from history
+34. History :: Up-arrow navigation
+35. History :: Down-arrow navigation
+36. History :: Executing commands from history
 1. History Persistence :: Read history from file
 1. History Persistence :: Write history to file
 1. History Persistence :: Append history to file
