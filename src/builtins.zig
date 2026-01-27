@@ -83,7 +83,13 @@ pub const Builtins = struct {
         } else target;
 
         std.posix.chdir(actual_target) catch |err| {
-            stderr.print("cd: {s}: {s}\n", .{ actual_target, @errorName(err) }) catch {};
+            const msg = switch (err) {
+                error.FileNotFound => "No such file or directory",
+                error.NotDir => "Not a directory",
+                error.AccessDenied => "Permission denied",
+                else => @errorName(err),
+            };
+            stderr.print("cd: {s}: {s}\n", .{ actual_target, msg }) catch {};
             return 1;
         };
         return 0;
