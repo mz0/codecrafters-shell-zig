@@ -25,3 +25,5 @@ To run the project make sure to have **zig** version 0.15.2 installed, then clon
 It should compile and run on Linux (and probably on other POSIX operating systems).
 
 2026-01-27 12:47:52 -0300 lautitux
+
+2026-01-30 14:22:52 +0400 mz0 fix BUG: upon exit on **Ctrl-D** terminal is not usable (input is not echoed)
