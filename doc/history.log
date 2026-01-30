@@ -1,0 +1,25 @@
+curl -fSs https://mise.jdx.dev/gpg-key.pub \
+  | sudo tee /etc/apt/keyrings/mise-archive-keyring.asc 1> /dev/null
+
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/mise-archive-keyring.asc] https://mise.jdx.dev/deb stable main" \
+  | sudo tee /etc/apt/sources.list.d/mise.list 1> /dev/null
+
+sudo apt update
+sudo apt install mise
+mise -v                 # 2026.1.9 linux-x64 (2026-01-28)
+
+mise ls-remote zig      # master ... 0.14.1 0.15.1 0.15.2
+mise use -g zig
+mise which zig
+mise where zig          # ~/.local/share/mise/installs/zig/0.15.2
+
+# https://mise.jdx.dev/getting-started.html#activate-mise
+echo 'eval "$(mise activate bash)"' >> ~/.bashrc
+. ~/.bashrc
+
+zig version             # 0.15.2
+
+mise use -g zls
+zls version             # 0.15.1
+
+## https://claude.ai/share/cb012790-4891-46ed-b75e-65501b532968 ##

@@ -1,0 +1,78 @@
+## https://claude.ai/share/cb012790-4891-46ed-b75e-65501b532968 ##
+
+**Q:** Is it true Claude Code may benefit form Language Server Protocol integration? If so, how should I do that?
+
+**A:** Yes, it's true. Claude Code now has native LSP (Language Server Protocol) support, which significantly enhances
+  its ability to understand and navigate your code. This was officially added in version 2.0.74, released in December 2025.
+
+What LSP Does for Claude Code
+
+LSP gives Claude Code IDE-level code intelligence, including:
+
+* Go to definition - Jump to where functions/variables are defined
+* Find references - See all places where a symbol is used
+* Type information on hover - Get function signatures and documentation
+* Real-time diagnostics - See errors and warnings after edits
+* Symbol navigation - List and navigate code structure
+
+The performance improvement is dramatic - shifting from text-based to semantic search
+delivers 900x faster results (50ms vs 45 seconds).
+
+**Q:** Is there Zig LSP (ZLS) plugin for Claude? If not, should I try directing Code to LSP-enabled editor/IDE?
+
+**A:** Yes, there is a ZLS plugin available for Claude Code. I found that the `boostvolt/claude-code-lsps`
+  marketplace includes a ZLS plugin[GitHub] besides Bash/Shell, C/C++/Objective-C, C#, Clojure, Dart/Flutter, Elixir,
+  Gleam, Go, Java, Kotlin, Lua, Nix, OCaml, PHP, Python, Ruby, Rust, Swift, Terraform, TypeScript/JavaScript, and YAML.
+
+[GitHub](https://github.com/boostvolt/claude-code-lsps)
+
+╭─── Claude Code v2.1.22 ──────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                    │ Tips for getting started                                                │
+│                 Welcome back Mark!                 │ Run /init to create a CLAUDE.md file with instructions for Claude       │
+│                                                    │ ─────────────────────────────────────────────────────────────────       │
+│                                                    │ Recent activity                                                         │
+│                       ▐▛███▜▌                      │ No recent activity                                                      │
+│                      ▝▜█████▛▘                     │                                                                         │
+│                        ▘▘ ▝▝                       │                                                                         │
+│   Opus 4.5 · Claude Pro · marcuzero@gmail.com's    │                                                                         │
+│   Organization                                     │                                                                         │
+│        ~/p/codecrafters-shell/Zig/lautitux         │                                                                         │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+❯ /plugin marketplace add boostvolt/claude-code-lsps
+  ⎿  Successfully added marketplace: claude-code-lsps
+
+❯ /plugin install zls@claude-code-lsps
+
+❯ this (learning) toy shell implementation has a bug: after exiting on Ctrl-D (EOT branch on line 132 in src/readline.zig)
+  the terminal is not restored to canonical mode, i.e. input is not echoed. Is my analysis correct and should the fix be to
+  call fn endRaw(self) before `return error.EndOfTransmission;` ?
+
+● Your analysis is correct. The prompt function calls beginRaw() at line 102 but only calls endRaw() at line 202, which is only
+  reached on the normal exit path (after '\n'). Both the EOT (Ctrl-D) and ETX (Ctrl-C) error paths return early without
+  restoring terminal settings.
+
+  A clean fix would be to use defer right after beginRaw() to ensure the terminal is always restored:
+
+  try self.beginRaw();
+  defer self.endRaw() catch {};
+
+  Then remove the explicit try self.endRaw(); at line 202.
+
+  Alternatively, you could call try self.endRaw(); before each error return, but defer is cleaner and ensures all exit paths are
+   covered (including any future ones you might add).
+
+  Note: The Ctrl-C path (line 135) has the same issue.
+
+❯ fix it
+...
+● Done. Added defer self.endRaw() catch {}; after beginRaw() and removed the explicit call. The terminal will now be restored on
+   all exit paths including Ctrl-D and Ctrl-C.
+
+❯ where to add printing '\n' so Ctrl-D advances to a new line before exiting?
+
+● In the EOT branch, same as the Ctrl-C handler above it
+...
+● Done. Now Ctrl-D prints a newline before exiting, matching the Ctrl-C behavior.
+
+❯ /exit
