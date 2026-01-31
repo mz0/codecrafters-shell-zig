@@ -68,7 +68,7 @@ const Pipeline = struct {
 ### Phase 1: Minimal REPL
 - `main.zig`: Print prompt, read line (cooked mode, std.io), print "command not found"
 - `exit` builtin with exit code
-- **Milestone**: Passes Codecrafters steps 1-3
+- **Milestone**: Pass `codecrafters test` steps 1-3
 
 ### Phase 2: Builtins + External Commands
 - `builtins.zig`: echo, pwd, cd, type
@@ -117,13 +117,13 @@ const Pipeline = struct {
 ## File Layout
 ```
 src/
-├── main.zig
-├── terminal.zig
-├── line_editor.zig   (includes history)
-├── tokenizer.zig
-├── executor.zig
 ├── builtins.zig
-└── path.zig
+├── executor.zig
+├── line_editor.zig   (includes history)
+├── main.zig
+├── path.zig
+├── terminal.zig
+└── tokenizer.zig
 ```
 
 ## Testing Strategy

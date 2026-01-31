@@ -174,11 +174,11 @@ test "single quotes" {
 }
 
 test "double quotes with escape" {
-    var t = Tokenizer.init("echo \"hello\\\"world\"", std.testing.allocator);
+    var t = Tokenizer.init("echo \"\\hello\\\"world\"", std.testing.allocator);
     defer t.deinit();
     const tokens = try t.tokenize();
     try std.testing.expectEqual(2, tokens.len);
-    try std.testing.expectEqualStrings("hello\"world", tokens[1].value);
+    try std.testing.expectEqualStrings("\\hello\"world", tokens[1].value);
 }
 
 test "pipe" {

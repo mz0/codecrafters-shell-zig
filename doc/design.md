@@ -21,17 +21,20 @@
 * Pipes (arbitrary number, builtins STDOUT is piped)
 * Command _history_
   * is read from a file pointed by HISTFILE env. variable on startup
-  * is read from `history -r <file-path>` <file-path> argument and appended to in-memory _history_
   * is appended to a file pointed by HISTFILE env. variable on shutdown
-  * is appended to `history -a <file-path>` <file-path> argument. Running history -a multiple times should only append commands
-    that have been executed since the last time history -a was run
+  * is read from `history -r <file-path>` <file-path> argument and appended to in-memory _history_
   * is written to `history -w <file-path>` <file-path> argument
-  * is shown on `history` command one command per line in two columns e.g. `    9 echo "Boo!"`
-  * `history <N>` shows the last N commands (numbered like before, i.e. if there are 8 commands in history, the last line printed on `history 3` is `    9 history 3`)
+  * is appended to `history -a <file-path>` <file-path> argument. Running history -a multiple times should only
+    append commands that have been executed since the last time `history -a` was run
+  * is shown on `history` command one command per line in two columns e.g. `    8 echo "Boo!"`
+  * `history <N>` shows the last N commands (numbered like before, i.e. if there are 8 commands in _history_,
+    the last line printed on `history 3` is `    9 history 3`)
   * previous commands displayed on ArrowUp / ArrowDown keypresses
+* `^C` - ignore typed characters, print prompt `$ ` on the next line, `^D` = `exit` builtin (on empty command line)
 
 ## Goals for this project:
-* Use no external library (though I may copy from well-known projects with liberal licenses provided there's only a handful of those)
-* build a minimal terminal control library + line editor (TAB operates on pre-filled map of commands, found in PATH, history kept in global list, displayed on ArrowUp/Down)
+* Use no external library
+* Build a minimal terminal control library + line editor
+  * early, so module structure is clear on early stages, and should remain stable
+  * TAB operates on pre-filled map of commands, found in PATH, and includes builtins
 * tokenizer should work as close to real shell as possible, e.g. "pwd|grep home" == "pwd | grep home", "pwd>/tmp/pwd" == "pwd > /tmp/pwd"
-* ^C - exits shell (printing "^C" is nice but may be skipped), ^D - exits silently

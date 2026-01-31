@@ -197,14 +197,12 @@ pub fn main() !void {
     // 3. Initialize LineEditor (includes History)
     // 4. Load history from HISTFILE env var
     // 5. Initialize Builtins (pass history reference, path resolver)
-    // 6. Setup terminal raw mode
-    // 7. REPL:
+    // 6. REPL:
     //    a. Print prompt "$ "
-    //    b. Read/edit line via LineEditor
-    //    c. On submit: tokenize, execute, add to history
-    //    d. On Ctrl+C/Ctrl+D: break loop
-    // 8. Save history to HISTFILE
-    // 9. Restore terminal, cleanup
+    //    b. Read/edit line via LineEditor (LineEditor on TTY enters non-canonical mode to read TAB, etc./ restores canonical mode on exit)
+    //    c. On submit: tokenize, execute, add to history (for normal command line)
+    //    d. On Ctrl+C continue / on Ctrl+D: break loop
+    // 7. Save history to HISTFILE
 }
 ```
 
